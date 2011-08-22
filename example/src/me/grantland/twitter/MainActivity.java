@@ -22,8 +22,7 @@ public class MainActivity extends Activity implements OnClickListener {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.login);
 
-        mTwitter = new Twitter();
-        mTwitter.setConsumerKeyAndSecret(CONSUMER_KEY, CONSUMER_SECRET);
+        mTwitter = new Twitter(CONSUMER_KEY, CONSUMER_SECRET);
 
 		mTwitterButton = (Button)findViewById(R.id.twitter_login);
 		mTwitterButton.setOnClickListener(this);

@@ -19,9 +19,22 @@ public class Twitter {
     public static final String CALLBACK_URI = CALLBACK_SCHEME + "://twitt";
 
     private OAuthConsumer mConsumer = null;
+    private TwitterDialog mDialog = null;
 
-    public void authorize(Context context, final DialogListener listener) {
-        new TwitterDialog(context, mConsumer, new DialogListener() {
+    public Twitter(String accessKey, String accessSecret) {
+        if (accessKey == null || accessSecret == null) {
+            throw new IllegalArgumentException(
+                    "You must specify your access key and secret when instantiating " +
+                    "a Twitter object. See README for details.");
+        }
+        mConsumer = new CommonsHttpOAuthConsumer(accessKey, accessSecret);
+    }
+
+    public boolean authorize(Context context, final DialogListener listener) {
+        if (mDialog != null && mDialog.isShowing())
+            return false;
+
+        mDialog = new TwitterDialog(context, mConsumer, new DialogListener() {
             @Override public void onComplete(String token, String secret) {
                 mConsumer.setTokenWithSecret(token, secret);
 
@@ -35,7 +48,9 @@ public class Twitter {
             @Override public void onCancel() {
                 listener.onCancel();
             }
-        }).show();
+        });
+        mDialog.show();
+        return true;
     }
 
     /**

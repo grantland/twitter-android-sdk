@@ -100,6 +100,8 @@ public class Twitter {
                 accessKey = extras.getString(EXTRA_ACCESS_KEY);
                 accessSecret = extras.getString(EXTRA_ACCESS_SECRET);
 
+                mConsumer.setTokenWithSecret(accessKey, accessSecret);
+
                 if (mListener != null) {
                     mListener.onComplete(accessKey, accessSecret);
                     return;
@@ -125,19 +127,7 @@ public class Twitter {
      * @return boolean - whether this object has an non-expired session token
      */
     public boolean isSessionValid() {
-        return mConsumer != null && (getToken() != null && getTokenSecret() != null);
-    }
-
-    public String getToken() {
-        return mConsumer.getToken();
-    }
-
-    public String getTokenSecret() {
-        return mConsumer.getTokenSecret();
-    }
-
-    public void setTokenWithSecret(String token, String secret) {
-        mConsumer.setTokenWithSecret(token, secret);
+        return mConsumer != null && (getAccessToken() != null && getAccessTokenSecret() != null);
     }
 
     public String getConsumerKey() {
@@ -150,6 +140,18 @@ public class Twitter {
 
     public void setConsumerKeyAndSecret(String consumerKey, String consumerSecret) {
         mConsumer = new CommonsHttpOAuthConsumer(consumerKey, consumerSecret);
+    }
+
+    public String getAccessToken() {
+        return mConsumer.getToken();
+    }
+
+    public String getAccessTokenSecret() {
+        return mConsumer.getTokenSecret();
+    }
+
+    public void setTokenWithSecret(String token, String secret) {
+        mConsumer.setTokenWithSecret(token, secret);
     }
 
 

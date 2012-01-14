@@ -4,7 +4,6 @@ import me.grantland.twitter.Twitter.DialogListener;
 import oauth.signpost.OAuth;
 import oauth.signpost.OAuthConsumer;
 import oauth.signpost.OAuthProvider;
-import oauth.signpost.commonshttp.CommonsHttpOAuthProvider;
 import oauth.signpost.exception.OAuthCommunicationException;
 import oauth.signpost.exception.OAuthExpectationFailedException;
 import oauth.signpost.exception.OAuthMessageSignerException;
@@ -18,7 +17,10 @@ import android.graphics.Color;
 import android.graphics.drawable.PaintDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.StrictMode;
 import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
 import android.view.Window;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -47,10 +49,27 @@ public class TwitterDialog extends Dialog {
 	private OAuthConsumer mConsumer;
 	private OAuthProvider mProvider;
 
-    public TwitterDialog(Context context, OAuthConsumer consumer, DialogListener listener) {
+    public TwitterDialog(Context context, OAuthConsumer consumer, OAuthProvider provider, DialogListener listener) {
         super(context, android.R.style.Theme_Translucent_NoTitleBar);
         mConsumer = consumer;
+        mProvider = provider;
         mListener = listener;
+
+        try {
+            //TODO use TwitterActivity to get rid of this
+            StrictMode.enableDefaults();
+
+            mUrl = mProvider.retrieveRequestToken(mConsumer, Twitter.CALLBACK_URI);
+            if (DEBUG) Log.d(TAG, mUrl);
+        } catch (OAuthMessageSignerException e) {
+            e.printStackTrace();
+        } catch (OAuthNotAuthorizedException e) {
+            e.printStackTrace();
+        } catch (OAuthExpectationFailedException e) {
+            e.printStackTrace();
+        } catch (OAuthCommunicationException e) {
+            e.printStackTrace();
+        }
     }
 
 	@Override
@@ -68,6 +87,8 @@ public class TwitterDialog extends Dialog {
 
         mFrame = new FrameLayout(getContext());
         mFrame.setPadding(PADDING, PADDING, PADDING, PADDING);
+        setContentView(mFrame);
+        mFrame.setVisibility(View.INVISIBLE);
 
         mContent = new FrameLayout(getContext());
         mContent.setPadding(PADDING, PADDING, PADDING, PADDING);
@@ -77,25 +98,6 @@ public class TwitterDialog extends Dialog {
         background.setAlpha(BORDER_ALPHA);
         background.setCornerRadius(BORDER_RADIUS);
         mContent.setBackgroundDrawable(background);
-
-        mProvider = new CommonsHttpOAuthProvider(
-                Twitter.REQUEST_TOKEN,
-                Twitter.ACCESS_TOKEN,
-                Twitter.AUTHORIZE);
-        mProvider.setOAuth10a(true);
-
-        try {
-            mUrl = mProvider.retrieveRequestToken(mConsumer, Twitter.CALLBACK_URI);
-            if (DEBUG) Log.d(TAG, mUrl);
-        } catch (OAuthMessageSignerException e) {
-            e.printStackTrace();
-        } catch (OAuthNotAuthorizedException e) {
-            e.printStackTrace();
-        } catch (OAuthExpectationFailedException e) {
-            e.printStackTrace();
-        } catch (OAuthCommunicationException e) {
-            e.printStackTrace();
-        }
 
         setUpWebView();
 
@@ -119,11 +121,11 @@ public class TwitterDialog extends Dialog {
 	}
 
 	private void setUpWebView() {
-        mWebView = new WebView(getContext());
+	    LayoutInflater inflater = this.getLayoutInflater();
+        mWebView = (WebView)inflater.inflate(R.layout.twitter_layout, null);
         mWebView.getSettings().setJavaScriptEnabled(true);
         mWebView.getSettings().setSaveFormData(false);
         mWebView.getSettings().setSavePassword(false);
-        mWebView.setScrollBarStyle(WebView.SCROLLBARS_OUTSIDE_OVERLAY);
         mWebView.setWebViewClient(new TwitterWebViewClient());
         mWebView.loadUrl(mUrl);
         mContent.addView(mWebView);
@@ -188,10 +190,7 @@ public class TwitterDialog extends Dialog {
 
         @Override public void onPageFinished(WebView view, String url) {
             mSpinner.dismiss();
-            if (mFrame.getParent() == null) {
-                setContentView(mFrame);
-                mWebView.requestFocus();
-            }
+            mFrame.setVisibility(View.VISIBLE);
         }
 
         @Override public void onReceivedError(WebView view, int errorCode,

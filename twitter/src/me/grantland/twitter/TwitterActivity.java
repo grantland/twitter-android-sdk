@@ -17,6 +17,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.View;
 import android.view.Window;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -194,7 +195,7 @@ public class TwitterActivity extends Activity {
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
             if (DEBUG) Log.d(TAG, "Webview loading URL: " + url);
-            if (!mSpinner.isShowing()) {
+            if (view.getVisibility() != View.INVISIBLE && !mSpinner.isShowing()) {
                 mSpinner.show();
             }
         }
@@ -202,6 +203,7 @@ public class TwitterActivity extends Activity {
         @Override
         public void onPageFinished(WebView view, String url) {
             mSpinner.dismiss();
+            view.setVisibility(View.VISIBLE);
         }
 
         @Override

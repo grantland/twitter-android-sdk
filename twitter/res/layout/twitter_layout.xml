@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<WebView xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/twitter_webview"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
         android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:scrollbarStyle="outsideOverlay" />
+        android:layout_height="fill_parent" >
+<ImageView android:id="@+id/twitter_background"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:padding="20dp"
+    android:src="@drawable/splash" />
+<WebView android:id="@+id/twitter_webview"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:scrollbarStyle="outsideOverlay"
+    android:visibility="invisible" />
+</RelativeLayout>

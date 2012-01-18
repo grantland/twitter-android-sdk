@@ -5,7 +5,6 @@
 	<classpathentry kind="con" path="com.android.ide.eclipse.adt.ANDROID_FRAMEWORK"/>
 	<classpathentry kind="lib" path="/Users/grantland/development/grantland/twitter-android-sdk/libs/signpost-commonshttp4-1.2.1.1.jar"/>
 	<classpathentry kind="lib" path="/Users/grantland/development/grantland/twitter-android-sdk/libs/signpost-core-1.2.1.1.jar"/>
-	<classpathentry kind="src" path="twitter_src"/>
 	<classpathentry kind="con" path="com.android.ide.eclipse.adt.LIBRARIES"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

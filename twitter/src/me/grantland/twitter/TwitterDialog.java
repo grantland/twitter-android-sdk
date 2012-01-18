@@ -4,10 +4,8 @@ import me.grantland.twitter.Twitter.DialogListener;
 import oauth.signpost.OAuth;
 import oauth.signpost.OAuthConsumer;
 import oauth.signpost.OAuthProvider;
-import oauth.signpost.exception.OAuthCommunicationException;
-import oauth.signpost.exception.OAuthExpectationFailedException;
-import oauth.signpost.exception.OAuthMessageSignerException;
-import oauth.signpost.exception.OAuthNotAuthorizedException;
+import oauth.signpost.commonshttp.CommonsHttpOAuthProvider;
+import oauth.signpost.exception.OAuthException;
 import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
@@ -17,7 +15,8 @@ import android.graphics.Color;
 import android.graphics.drawable.PaintDrawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.StrictMode;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -33,9 +32,23 @@ public class TwitterDialog extends Dialog {
     private static final String TAG = Twitter.TAG;
 	private static final boolean DEBUG = Twitter.DEBUG;
 
+    private static final int ERROR = -1;
+    private static final int RETRIEVE_REQUEST_TOKEN = 1;
+    private static final int RETRIEVE_ACCESS_TOKEN = 2;
+
+    private static final String KEY_ERROR = "error";
+    private static final String KEY_URL = "url";
+    private static final String KEY_ACCESS_TOKEN = "access_token";
+    private static final String KEY_ACCESS_SECRET = "access_secret";
+
 	private static final int PADDING = 10;
 	private static final int BORDER_ALPHA = 126;
 	private static final int BORDER_RADIUS = 10;
+
+    private H mMainThreadHandler;
+
+    private OAuthConsumer mConsumer;
+    private OAuthProvider mProvider;
 
     private final DialogListener mListener;
 
@@ -46,30 +59,64 @@ public class TwitterDialog extends Dialog {
 					    mContent;
 	private WebView mWebView;
 
-	private OAuthConsumer mConsumer;
-	private OAuthProvider mProvider;
+    /**
+     * Handler to run shit on the UI thread
+     *
+     * @author Grantland Chew
+     */
+    private class H extends Handler {
+        @Override
+        public void handleMessage (Message msg) {
+            Bundle data = msg.getData();
 
-    public TwitterDialog(Context context, OAuthConsumer consumer, OAuthProvider provider, DialogListener listener) {
+            switch (msg.what) {
+                case ERROR: {
+                    error((Throwable)data.getSerializable(KEY_ERROR));
+                } break;
+                case RETRIEVE_REQUEST_TOKEN: {
+                    mWebView.loadUrl(data.getString(KEY_URL));
+                } break;
+                case RETRIEVE_ACCESS_TOKEN: {
+                    complete(data.getString(KEY_ACCESS_TOKEN), data.getString(KEY_ACCESS_SECRET));
+                } break;
+                default: {
+
+                }
+            }
+        }
+    }
+
+    public TwitterDialog(Context context, OAuthConsumer consumer, boolean forceLogin, String screenName, DialogListener listener) {
         super(context, android.R.style.Theme_Translucent_NoTitleBar);
         mConsumer = consumer;
-        mProvider = provider;
         mListener = listener;
 
-        try {
-            //TODO use TwitterActivity to get rid of this
-            StrictMode.enableDefaults();
+        mMainThreadHandler = new H();
 
-            mUrl = mProvider.retrieveRequestToken(mConsumer, Twitter.CALLBACK_URI);
-            if (DEBUG) Log.d(TAG, mUrl);
-        } catch (OAuthMessageSignerException e) {
-            e.printStackTrace();
-        } catch (OAuthNotAuthorizedException e) {
-            e.printStackTrace();
-        } catch (OAuthExpectationFailedException e) {
-            e.printStackTrace();
-        } catch (OAuthCommunicationException e) {
-            e.printStackTrace();
-        }
+        mProvider = new CommonsHttpOAuthProvider(
+                Twitter.REQUEST_TOKEN,
+                Twitter.ACCESS_TOKEN,
+                Twitter.AUTHORIZE);
+        mProvider.setOAuth10a(true);
+
+         // Retrieve request_token on background thread
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                Message msg = new Message();
+                Bundle bundle = new Bundle();
+                try {
+                    msg.what = RETRIEVE_REQUEST_TOKEN;
+                    bundle.putString(KEY_URL, mProvider.retrieveRequestToken(mConsumer, Twitter.CALLBACK_URI));
+                } catch (OAuthException e) {
+                    msg.what = ERROR;
+                    bundle.putSerializable(KEY_ERROR, e);
+                }
+                msg.setData(bundle);
+                mMainThreadHandler.sendMessage(msg);
+            }
+        };
+        thread.start();
     }
 
 	@Override
@@ -108,16 +155,26 @@ public class TwitterDialog extends Dialog {
         });
 	}
 
+	private void complete(String accessKey, String accessSecret) {
+	    mListener.onComplete(accessKey, accessSecret);
+	    dismiss();
+	}
+
+	private void error(Throwable error) {
+	    mListener.onError(new TwitterError(error.getMessage()));
+	    dismiss();
+	}
+
 	@Override
 	public void dismiss() {
 	    super.dismiss();
-	    mWebView.stopLoading();
+	    //mWebView.stopLoading();
 	}
 
 	@Override
 	public void cancel() {
 	    super.cancel();
-	    mWebView.stopLoading();
+	    //mWebView.stopLoading();
 	}
 
 	private void setUpWebView() {
@@ -131,36 +188,35 @@ public class TwitterDialog extends Dialog {
         mContent.addView(mWebView);
 	}
 
-	private void retrieveAccessToken(Uri uri) {
-		if (DEBUG) Log.d(TAG, uri.toString());
-		String oauth_token = uri.getQueryParameter(OAuth.OAUTH_TOKEN);
-		String verifier = uri.getQueryParameter(OAuth.OAUTH_VERIFIER);
-		if (DEBUG) Log.d(TAG, oauth_token);
-		if (DEBUG) Log.d(TAG, verifier);
-		try {
-		    String accessKey, accessSecret;
-			mConsumer.setTokenWithSecret(oauth_token, mConsumer.getConsumerSecret());
+    private void retrieveAccessToken(final Uri uri) {
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                Message msg = new Message();
+                Bundle bundle = new Bundle();
+                try {
+                    if (DEBUG) Log.d(TAG, uri.toString());
+                    String oauth_token = uri.getQueryParameter(OAuth.OAUTH_TOKEN);
+                    String verifier = uri.getQueryParameter(OAuth.OAUTH_VERIFIER);
+                    if (DEBUG) Log.d(TAG, oauth_token);
+                    if (DEBUG) Log.d(TAG, verifier);
 
-			mProvider.retrieveAccessToken(mConsumer, verifier);
-			accessKey = mConsumer.getToken();
-			accessSecret = mConsumer.getTokenSecret();
+                    mConsumer.setTokenWithSecret(oauth_token, mConsumer.getConsumerSecret());
+                    mProvider.retrieveAccessToken(mConsumer, verifier);
 
-			if (DEBUG) Log.d(TAG, "access_key: " + accessKey);
-			if (DEBUG) Log.d(TAG, "access_secret: " + accessSecret);
-
-			mListener.onComplete(accessKey, accessSecret);
-		} catch (OAuthMessageSignerException e) {
-			e.printStackTrace();
-		} catch (OAuthNotAuthorizedException e) {
-			e.printStackTrace();
-		} catch (OAuthExpectationFailedException e) {
-			e.printStackTrace();
-		} catch (OAuthCommunicationException e) {
-			e.printStackTrace();
-		}
-
-		dismiss();
-	}
+                    msg.what = RETRIEVE_ACCESS_TOKEN;
+                    bundle.putString(KEY_ACCESS_TOKEN, mConsumer.getToken());
+                    bundle.putString(KEY_ACCESS_SECRET, mConsumer.getTokenSecret());
+                } catch (OAuthException e)  {
+                    msg.what = ERROR;
+                    bundle.putSerializable(KEY_ERROR, e);
+                }
+                msg.setData(bundle);
+                mMainThreadHandler.sendMessage(msg);
+            }
+        };
+        thread.start();
+    }
 
 	private class TwitterWebViewClient extends WebViewClient {
         @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -196,7 +252,7 @@ public class TwitterDialog extends Dialog {
         @Override public void onReceivedError(WebView view, int errorCode,
                 String description, String failingUrl) {
             super.onReceivedError(view, errorCode, description, failingUrl);
-            mListener.onError(description, errorCode, failingUrl);
+            mListener.onError(new TwitterError(description, errorCode, failingUrl));
             dismiss();
         }
     };

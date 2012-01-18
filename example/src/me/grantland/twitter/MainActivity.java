@@ -33,9 +33,10 @@ public class MainActivity extends Activity implements OnClickListener {
 	public void onClick(View v) {
 		if (v.equals(mTwitterButton)) {
 		    mTwitter.authorize(this, new DialogListener() {
-		        @Override public void onComplete(String accessKey, String accessSecret) {
+		        @Override
+		        public void onComplete(String accessKey, String accessSecret) {
 		            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-		            builder.setTitle("EightBit")
+		            builder.setTitle("Success")
 		                   .setMessage("access_key: " + accessKey
 		                        + "\naccess_secret: " + accessSecret)
 		                   .setPositiveButton("Ok", null);
@@ -43,17 +44,24 @@ public class MainActivity extends Activity implements OnClickListener {
 		            alert.show();
 		        }
 
-		        @Override public void onCancel() {
+		        @Override
+		        public void onCancel() {
 		            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-		            builder.setTitle("EightBit")
+		            builder.setTitle("Canceled")
 		                   .setMessage("Twitter Login Canceled")
 		                   .setPositiveButton("Ok", null);
 		            AlertDialog alert = builder.create();
 		            alert.show();
 		        }
 
-		        @Override public void onError(String description, int errorCode, String failingUrl) {
-		            // do nothing
+		        @Override
+		        public void onError(TwitterError error) {
+                    AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                    builder.setTitle("Error")
+                           .setMessage(error.getMessage())
+                           .setPositiveButton("Ok", null);
+                    AlertDialog alert = builder.create();
+                    alert.show();
 		        }
 		    });
 		}

@@ -13,6 +13,8 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Window;
@@ -23,11 +25,42 @@ public class TwitterActivity extends Activity {
     private static final String TAG = Twitter.TAG;
     private static final boolean DEBUG = Twitter.DEBUG;
 
+    private static final int RETRIEVE_REQUEST_TOKEN = 1;
+    private static final int RETRIEVE_ACCESS_TOKEN = 2;
+
+    private static final String KEY_URL = "url";
+
+    private H mMainThreadHandler;
+
     private OAuthConsumer mConsumer;
     private OAuthProvider mProvider;
 
     private ProgressDialog mSpinner;
     private WebView mWebView;
+
+    /**
+     * Handler to run shit on the UI thread
+     *
+     * @author Grantland Chew
+     */
+    private class H extends Handler {
+        @Override
+        public void handleMessage (Message msg) {
+            Bundle data = msg.getData();
+
+            switch (msg.what) {
+                case RETRIEVE_REQUEST_TOKEN: {
+                    mWebView.loadUrl(data.getString(KEY_URL));
+                } break;
+                case RETRIEVE_ACCESS_TOKEN: {
+
+                } break;
+                default: {
+
+                }
+            }
+        }
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -38,10 +71,10 @@ public class TwitterActivity extends Activity {
         Bundle extras = getIntent().getExtras();
         if (extras != null) {
             mConsumer = (OAuthConsumer)extras.get(Twitter.EXTRA_CONSUMER);
-            mProvider = (OAuthProvider)extras.get(Twitter.EXTRA_PROVIDER);
         }
 
-        //TODO figure out why this is needed
+        mMainThreadHandler = new H();
+
         mProvider = new CommonsHttpOAuthProvider(
                 Twitter.REQUEST_TOKEN,
                 Twitter.ACCESS_TOKEN,
@@ -49,13 +82,12 @@ public class TwitterActivity extends Activity {
         mProvider.setOAuth10a(true);
 
         mSpinner = new ProgressDialog(this);
-        mSpinner.setMessage("Loading...");
+        mSpinner.setMessage(getResources().getString(R.string.loading_loading));
         mSpinner.setOnCancelListener(new OnCancelListener() {
             @Override public void onCancel(DialogInterface dialog) {
                 cancel();
             }
         });
-        mSpinner.show();
 
         mWebView = (WebView)findViewById(R.id.twitter_webview);
         mWebView.getSettings().setJavaScriptEnabled(true);
@@ -64,13 +96,22 @@ public class TwitterActivity extends Activity {
         mWebView.setScrollBarStyle(WebView.SCROLLBARS_OUTSIDE_OVERLAY);
         mWebView.setWebViewClient(new TwitterWebViewClient());
 
+        // Retrieve request_token on background thread
         Thread thread = new Thread() {
             @Override
             public void run() {
                 try {
-                    mWebView.loadUrl(mProvider.retrieveRequestToken(mConsumer, Twitter.CALLBACK_URI));
+                    Message msg = new Message();
+                    msg.what = RETRIEVE_REQUEST_TOKEN;
+
+                    Bundle bundle = new Bundle();
+                    bundle.putString(KEY_URL, mProvider.retrieveRequestToken(mConsumer, Twitter.CALLBACK_URI));
+                    msg.setData(bundle);
+
+                    if (DEBUG) Log.d(TAG, "url: " + bundle.getString(KEY_URL));
+                    mMainThreadHandler.sendMessage(msg);
                 } catch (OAuthException e) {
-                    //TODO
+                    error(e);
                 }
             }
         };
@@ -87,8 +128,11 @@ public class TwitterActivity extends Activity {
         return false; // don't consume event
     }
 
-    private void error(String description, int errorCode, String failingUrl) {
-        //TODO
+    private void error(Throwable error) {
+        Intent intent = this.getIntent();
+        intent.putExtra(Twitter.EXTRA_ERROR, error.getMessage());
+        this.setResult(RESULT_OK, intent);
+        finish();
     }
 
     private void cancel() {
@@ -109,7 +153,6 @@ public class TwitterActivity extends Activity {
         Thread thread = new Thread() {
             @Override
             public void run() {
-                String accessKey, accessSecret;
                 try {
                     if (DEBUG) Log.d(TAG, uri.toString());
                     String oauth_token = uri.getQueryParameter(OAuth.OAUTH_TOKEN);
@@ -120,17 +163,9 @@ public class TwitterActivity extends Activity {
                     mConsumer.setTokenWithSecret(oauth_token, mConsumer.getConsumerSecret());
                     mProvider.retrieveAccessToken(mConsumer, verifier);
 
-                    accessKey = mConsumer.getToken();
-                    accessSecret = mConsumer.getTokenSecret();
-
-                    if (DEBUG) Log.d(TAG, "access_key: " + accessKey);
-                    if (DEBUG) Log.d(TAG, "access_secret: " + accessSecret);
-
-                    complete(accessKey, accessSecret);
+                    complete(mConsumer.getToken(), mConsumer.getTokenSecret());
                 } catch (OAuthException e) {
-                    e.printStackTrace();
-                    //TODO
-                    error(null, -1, null);
+                    error(e);
                 }
             }
         };
@@ -138,7 +173,8 @@ public class TwitterActivity extends Activity {
     }
 
     private class TwitterWebViewClient extends WebViewClient {
-        @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
             if (DEBUG) Log.d(TAG, url);
             Uri uri = Uri.parse(url);
             if (uri != null && Twitter.CALLBACK_SCHEME.equals(uri.getScheme())) {
@@ -155,7 +191,8 @@ public class TwitterActivity extends Activity {
             return false;
         }
 
-        @Override public void onPageStarted(WebView view, String url, Bitmap favicon) {
+        @Override
+        public void onPageStarted(WebView view, String url, Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
             if (DEBUG) Log.d(TAG, "Webview loading URL: " + url);
             if (!mSpinner.isShowing()) {
@@ -163,14 +200,16 @@ public class TwitterActivity extends Activity {
             }
         }
 
-        @Override public void onPageFinished(WebView view, String url) {
+        @Override
+        public void onPageFinished(WebView view, String url) {
             mSpinner.dismiss();
         }
 
-        @Override public void onReceivedError(WebView view, int errorCode,
+        @Override
+        public void onReceivedError(WebView view, int errorCode,
                 String description, String failingUrl) {
             super.onReceivedError(view, errorCode, description, failingUrl);
-            error(description, errorCode, failingUrl);
+            error(new TwitterError(description, errorCode, failingUrl));
         }
     };
 }

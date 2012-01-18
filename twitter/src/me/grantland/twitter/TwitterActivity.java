@@ -68,17 +68,16 @@ public class TwitterActivity extends Activity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.twitter_layout);
 
-        Bundle extras = getIntent().getExtras();
-        if (extras != null) {
-            mConsumer = (OAuthConsumer)extras.get(Twitter.EXTRA_CONSUMER);
-        }
+        Intent intent = getIntent();
+        mConsumer = (OAuthConsumer)intent.getSerializableExtra(Twitter.EXTRA_CONSUMER);
+        String authorizeParams = intent.getStringExtra(Twitter.EXTRA_AUTHORIZE_PARAMS);
 
         mMainThreadHandler = new H();
 
         mProvider = new CommonsHttpOAuthProvider(
                 Twitter.REQUEST_TOKEN,
                 Twitter.ACCESS_TOKEN,
-                Twitter.AUTHORIZE);
+                Twitter.AUTHORIZE + authorizeParams);
         mProvider.setOAuth10a(true);
 
         mSpinner = new ProgressDialog(this);

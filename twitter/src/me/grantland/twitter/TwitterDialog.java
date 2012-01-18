@@ -86,7 +86,7 @@ public class TwitterDialog extends Dialog {
         }
     }
 
-    public TwitterDialog(Context context, OAuthConsumer consumer, boolean forceLogin, String screenName, DialogListener listener) {
+    public TwitterDialog(Context context, OAuthConsumer consumer, String authorizeParams, DialogListener listener) {
         super(context, android.R.style.Theme_Translucent_NoTitleBar);
         mConsumer = consumer;
         mListener = listener;
@@ -96,7 +96,7 @@ public class TwitterDialog extends Dialog {
         mProvider = new CommonsHttpOAuthProvider(
                 Twitter.REQUEST_TOKEN,
                 Twitter.ACCESS_TOKEN,
-                Twitter.AUTHORIZE);
+                Twitter.AUTHORIZE + authorizeParams);
         mProvider.setOAuth10a(true);
 
          // Retrieve request_token on background thread

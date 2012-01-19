@@ -4,6 +4,4 @@ This is an unofficial Java Twitter SDK implementation for Android. It contains a
 
 ## TODO
 
-* Add background image to TwitterActivity to look like a splash screen
-* Fix TwitterDialog to not require `StrictMode.enableDefaults;`
-* Do all `//TODO`'s
+* Make methods to make Twitter API calls

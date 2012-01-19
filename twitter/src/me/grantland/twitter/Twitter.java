@@ -27,7 +27,7 @@ public class Twitter {
     public static final String EXTRA_ACCESS_SECRET = "access_secret";
 
     // Used as default activityCode by authorize(). See authorize() below.
-    public static final int DEFAULT_AUTH_ACTIVITY_CODE = 424242;
+    public static final int DEFAULT_AUTH_ACTIVITY_CODE = 4242;
 
     private OAuthConsumer mConsumer = null;
 
